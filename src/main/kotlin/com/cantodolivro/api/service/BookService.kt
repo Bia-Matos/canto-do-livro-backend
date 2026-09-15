@@ -5,6 +5,7 @@ import com.cantodolivro.api.dto.BookSearchResultDto
 import com.cantodolivro.api.model.Livro
 import com.cantodolivro.api.provider.BookProvider
 import com.cantodolivro.api.repository.LivroRepository
+import org.springframework.cache.annotation.Cacheable
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.LocalDateTime
@@ -15,15 +16,18 @@ class BookService(
     private val livroRepository: LivroRepository
 ) {
 
-    private val primaryProvider: BookProvider
-        get() = providers.firstOrNull { it.providerName == "OPEN_LIBRARY" }
-            ?: providers.first()
+    private val googleBooksProvider: BookProvider?
+        get() = providers.firstOrNull { it.providerName == "GOOGLE_BOOKS" }
 
+    private val openLibraryProvider: BookProvider?
+        get() = providers.firstOrNull { it.providerName == "OPEN_LIBRARY" }
+
+    @Cacheable("book_search", key = "#query")
     fun search(query: String): List<BookSearchResultDto> {
         val trimmed = query.trim()
         if (trimmed.isEmpty()) return emptyList()
 
-        // 1. Se for busca por ISBN, verifica primeiro no banco local (cache)
+        // 1. Se for busca por ISBN, verifica primeiro no banco local
         val normalizedIsbn = trimmed.replace("-", "").replace(" ", "")
         if (normalizedIsbn.length in listOf(10, 13)) {
             val localBook = livroRepository.findByIsbn(normalizedIsbn)
@@ -35,11 +39,20 @@ class BookService(
             }
         }
 
-        // 2. Consulta provedor externo (Open Library primário, preparado para Google Books fallback)
+        // 2. Tenta Google Books primeiro (melhor cobertura), depois fallback para Open Library
         val results = try {
-            primaryProvider.search(trimmed)
+            val googleResults = googleBooksProvider?.search(trimmed) ?: emptyList()
+            if (googleResults.isNotEmpty()) {
+                googleResults
+            } else {
+                openLibraryProvider?.search(trimmed) ?: emptyList()
+            }
         } catch (e: Exception) {
-            emptyList()
+            try {
+                openLibraryProvider?.search(trimmed) ?: emptyList()
+            } catch (fallbackError: Exception) {
+                emptyList()
+            }
         }
 
         // 3. Marca resultados que já estão salvos no banco local (deduplicação)
@@ -54,9 +67,10 @@ class BookService(
         return results
     }
 
+    @Cacheable("book_isbn", key = "#isbn")
     fun getByIsbn(isbn: String): BookSearchResultDto? {
         val normalized = isbn.replace("-", "").replace(" ", "").trim()
-        
+
         // 1. Banco local primeiro
         val local = livroRepository.findByIsbn(normalized)
             ?: livroRepository.findByIsbn13(normalized)
@@ -66,8 +80,22 @@ class BookService(
             return local.toDto(jaCadastrado = true)
         }
 
-        // 2. Consulta provedor
-        val result = primaryProvider.getByIsbn(normalized)
+        // 2. Tenta Google Books primeiro, depois Open Library
+        val result = try {
+            val googleResult = googleBooksProvider?.getByIsbn(normalized)
+            if (googleResult != null) {
+                googleResult
+            } else {
+                openLibraryProvider?.getByIsbn(normalized)
+            }
+        } catch (e: Exception) {
+            try {
+                openLibraryProvider?.getByIsbn(normalized)
+            } catch (fallbackError: Exception) {
+                null
+            }
+        }
+
         if (result != null) {
             val localFound = findExistingLocalBook(result.isbn, result.externalId)
             if (localFound != null) {
@@ -78,12 +106,29 @@ class BookService(
         return result
     }
 
+    @Cacheable("book_details", key = "#externalId")
     fun getByExternalId(externalId: String): BookSearchResultDto? {
         val local = livroRepository.findByExternalId(externalId)
         if (local != null) {
             return local.toDto(jaCadastrado = true)
         }
-        return primaryProvider.getByExternalId(externalId)
+
+        val result = try {
+            val googleResult = googleBooksProvider?.getByExternalId(externalId)
+            if (googleResult != null) {
+                googleResult
+            } else {
+                openLibraryProvider?.getByExternalId(externalId)
+            }
+        } catch (e: Exception) {
+            try {
+                openLibraryProvider?.getByExternalId(externalId)
+            } catch (fallbackError: Exception) {
+                null
+            }
+        }
+
+        return result
     }
 
     @Transactional

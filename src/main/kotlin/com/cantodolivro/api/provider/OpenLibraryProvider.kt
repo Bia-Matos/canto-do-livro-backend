@@ -5,6 +5,8 @@ import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import org.springframework.web.client.RestClient
 import tools.jackson.databind.JsonNode
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.ForkJoinPool
 
 @Component
 class OpenLibraryProvider : BookProvider {
@@ -118,16 +120,13 @@ class OpenLibraryProvider : BookProvider {
             val ano = extractYear(dataPub)
             val paginas = response.get("number_of_pages")?.asInt()
 
-            // Editoras
             val editoras = mutableListOf<String>()
             response.get("publishers")?.forEach { editoras.add(it.asText()) }
             val editora = editoras.firstOrNull()
 
-            // ISBN
             val isbn10 = response.get("isbn_10")?.firstOrNull()?.asText()
             val isbn13 = response.get("isbn_13")?.firstOrNull()?.asText()
 
-            // Capa
             val covers = response.get("covers")
             val coverId = covers?.firstOrNull()?.asInt()
             val capaUrl = when {
@@ -135,25 +134,25 @@ class OpenLibraryProvider : BookProvider {
                 else -> "https://covers.openlibrary.org/b/isbn/$normalized-L.jpg"
             }
 
-            // Descrição da edição ou obra
             var sinopse = extractDescription(response.get("description"))
-
-            // Se a edição não tiver sinopse, buscar da obra pai
             val works = response.get("works")
             val workKey = works?.firstOrNull()?.get("key")?.asText()
-            if (sinopse == null && workKey != null) {
-                sinopse = fetchWorkDescription(workKey)
+
+            val autores = mutableListOf<String>()
+            val authorKeys = mutableListOf<String>()
+            response.get("authors")?.forEach {
+                val key = it.get("key")?.asText()
+                if (key != null) authorKeys.add(key)
             }
 
-            // Autores
-            val autores = mutableListOf<String>()
-            response.get("authors")?.forEach {
-                val authorKey = it.get("key")?.asText()
-                if (authorKey != null) {
-                    val authorName = fetchAuthorName(authorKey)
-                    if (authorName != null) autores.add(authorName)
-                }
+            val (fetchedSinopse, fetchedAutores) = if (sinopse == null || authorKeys.isNotEmpty()) {
+                fetchInParallel(workKey, authorKeys)
+            } else {
+                Pair(sinopse, autores)
             }
+
+            if (sinopse == null) sinopse = fetchedSinopse
+            autores.addAll(fetchedAutores)
 
             BookSearchResultDto(
                 externalId = workKey ?: response.get("key")?.asText(),
@@ -176,6 +175,29 @@ class OpenLibraryProvider : BookProvider {
         }
     }
 
+    private fun fetchInParallel(workKey: String?, authorKeys: List<String>): Pair<String?, List<String>> {
+        return try {
+            val workFuture = if (workKey != null) {
+                CompletableFuture.supplyAsync({
+                    fetchWorkDescription(workKey)
+                }, ForkJoinPool.commonPool())
+            } else {
+                CompletableFuture.completedFuture(null)
+            }
+
+            val authorsFuture = CompletableFuture.supplyAsync({
+                authorKeys.mapNotNull { fetchAuthorName(it) }
+            }, ForkJoinPool.commonPool())
+
+            val sinopse = workFuture.get()
+            val autores = authorsFuture.get()
+
+            Pair(sinopse, autores)
+        } catch (e: Exception) {
+            Pair(null, emptyList())
+        }
+    }
+
     override fun getByExternalId(externalId: String): BookSearchResultDto? {
         val path = if (externalId.startsWith("/")) externalId else "/$externalId"
         return try {
@@ -186,7 +208,7 @@ class OpenLibraryProvider : BookProvider {
 
             val title = response.get("title")?.asText() ?: return null
             var sinopse = extractDescription(response.get("description"))
-            
+
             val covers = response.get("covers")
             val coverId = covers?.firstOrNull()?.asInt()
             var capaUrl = if (coverId != null && coverId > 0) {
@@ -197,13 +219,19 @@ class OpenLibraryProvider : BookProvider {
             var editora: String? = null
             var ano: Int? = null
 
-            // Se a obra não tiver capa ou sinopse direta, vasculha as edições da obra
             try {
-                val editionsRes = restClient.get()
-                    .uri("$path/editions.json?limit=10")
-                    .retrieve()
-                    .body(JsonNode::class.java)
+                val editionsFuture = CompletableFuture.supplyAsync({
+                    try {
+                        restClient.get()
+                            .uri("$path/editions.json?limit=10")
+                            .retrieve()
+                            .body(JsonNode::class.java)
+                    } catch (e: Exception) {
+                        null
+                    }
+                }, ForkJoinPool.commonPool())
 
+                val editionsRes = editionsFuture.get()
                 val entries = editionsRes?.get("entries")
                 if (entries != null) {
                     for (edition in entries) {

@@ -18,5 +18,9 @@ supabase:
   jwt:
     secret: X1+J1/1Zwm3WRg4DcBW9dIHyHayz+dkSWEFacDZ4fiesfcl/ITKvNKJ1lxYvn8NTLcFlDF+vyQk+VRSbDUpCVA==
 
+google:
+  books:
+    api-key: AIzaSyAp6qaYN256aak7F4Jj__4mzKQ8oXJaLOM
+
 server:
   port: 8080
