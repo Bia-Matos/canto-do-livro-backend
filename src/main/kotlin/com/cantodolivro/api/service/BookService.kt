@@ -5,6 +5,7 @@ import com.cantodolivro.api.dto.BookSearchResultDto
 import com.cantodolivro.api.model.Livro
 import com.cantodolivro.api.provider.BookProvider
 import com.cantodolivro.api.repository.LivroRepository
+import org.slf4j.LoggerFactory
 import org.springframework.cache.annotation.Cacheable
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -15,6 +16,7 @@ class BookService(
     private val providers: List<BookProvider>,
     private val livroRepository: LivroRepository
 ) {
+    private val logger = LoggerFactory.getLogger(BookService::class.java)
 
     private val googleBooksProvider: BookProvider?
         get() = providers.firstOrNull { it.providerName == "GOOGLE_BOOKS" }
@@ -26,6 +28,10 @@ class BookService(
     fun search(query: String): List<BookSearchResultDto> {
         val trimmed = query.trim()
         if (trimmed.isEmpty()) return emptyList()
+
+        logger.info("Buscando livros por: '$trimmed'")
+        logger.info("Google Books Provider: ${googleBooksProvider?.providerName ?: "NÃO ENCONTRADO"}")
+        logger.info("Open Library Provider: ${openLibraryProvider?.providerName ?: "NÃO ENCONTRADO"}")
 
         // 1. Se for busca por ISBN, verifica primeiro no banco local
         val normalizedIsbn = trimmed.replace("-", "").replace(" ", "")
@@ -41,16 +47,22 @@ class BookService(
 
         // 2. Tenta Google Books primeiro (melhor cobertura), depois fallback para Open Library
         val results = try {
+            logger.info("Tentando Google Books...")
             val googleResults = googleBooksProvider?.search(trimmed) ?: emptyList()
+            logger.info("Google Books retornou ${googleResults.size} resultados")
             if (googleResults.isNotEmpty()) {
                 googleResults
             } else {
+                logger.info("Tentando Open Library...")
                 openLibraryProvider?.search(trimmed) ?: emptyList()
             }
         } catch (e: Exception) {
+            logger.error("Erro ao buscar em Google Books/Open Library: ${e.message}", e)
             try {
+                logger.info("Fallback para Open Library...")
                 openLibraryProvider?.search(trimmed) ?: emptyList()
             } catch (fallbackError: Exception) {
+                logger.error("Erro no fallback Open Library: ${fallbackError.message}", fallbackError)
                 emptyList()
             }
         }
