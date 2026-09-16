@@ -8,4 +8,6 @@ import org.springframework.stereotype.Repository
 interface AvaliacaoRepository : JpaRepository<Avaliacao, Long> {
     fun findByLivroIdOrderByIdDesc(livroId: Long): List<Avaliacao>
     fun findAllByOrderByIdDesc(): List<Avaliacao>
+    fun findByHistoricoLivroIdIsNullOrderByIdDesc(): List<Avaliacao>
+    fun findByHistoricoLivroIdOrderByIdDesc(historicoLivroId: Long): List<Avaliacao>
 }

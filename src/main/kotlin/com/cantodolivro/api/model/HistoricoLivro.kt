@@ -25,6 +25,9 @@ data class HistoricoLivro(
     @Column(columnDefinition = "TEXT")
     var capaUrl: String = "",
 
+    @Column(columnDefinition = "TEXT")
+    var sinopse: String? = null,
+
     var mediaClube: Double = 0.0,
 
     var totalAvaliacoes: Int = 0,

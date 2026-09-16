@@ -7,4 +7,5 @@ import org.springframework.stereotype.Repository
 @Repository
 interface HistoricoLivroRepository : JpaRepository<HistoricoLivro, Long> {
     fun findAllByOrderByIdDesc(): List<HistoricoLivro>
+    fun findAllByOrderByFinalizadoEmDesc(): List<HistoricoLivro>
 }

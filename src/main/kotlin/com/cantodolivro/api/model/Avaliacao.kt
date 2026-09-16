@@ -12,8 +12,14 @@ data class Avaliacao(
 
     var livroId: Long? = null,
 
+    // Preenchido quando o mês é finalizado e a avaliação é arquivada no histórico.
+    // Enquanto null, a avaliação pertence ao ciclo/livro do mês atual.
+    var historicoLivroId: Long? = null,
+
     @Column(nullable = false)
     var usuarioNome: String = "Membro do Clube",
+
+    var usuarioEmail: String? = null,
 
     @Column(columnDefinition = "TEXT")
     var usuarioFoto: String? = null,

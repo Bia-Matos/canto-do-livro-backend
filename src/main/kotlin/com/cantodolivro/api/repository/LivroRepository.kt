@@ -12,4 +12,6 @@ interface LivroRepository : JpaRepository<Livro, Long> {
     fun findByExternalId(externalId: String): Livro?
     fun findAllByOrderByVotosDescIdDesc(): List<Livro>
     fun findByStatusOrderByVotosDescIdDesc(status: String): List<Livro>
+    fun findByStatusNotOrderByVotosDescIdDesc(status: String): List<Livro>
+    fun findByStatusAndIndicadoPorEmailIn(status: String, emails: List<String>): List<Livro>
 }

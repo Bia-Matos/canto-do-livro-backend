@@ -11,21 +11,24 @@ data class LivroDoMes(
     val id: Long? = null,
 
     @Column(nullable = false)
-    var mes: String = "Outubro",
+    var mes: String = "",
 
     @Column(nullable = false)
-    var titulo: String = "O Morro dos Ventos Uivantes",
+    var titulo: String = "",
 
     @Column(nullable = false)
-    var autor: String = "Emily Brontë",
+    var autor: String = "",
 
     @Column(nullable = false)
-    var indicacao: String = "Marina",
+    var indicacao: String = "",
 
     @Column(columnDefinition = "TEXT")
     var capaUrl: String = "/livro-do-mes.png",
 
-    var mediaClube: Double = 4.5,
+    @Column(columnDefinition = "TEXT")
+    var sinopse: String? = null,
+
+    var mediaClube: Double = 0.0,
 
     var atualizadoEm: LocalDateTime = LocalDateTime.now()
 )

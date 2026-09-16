@@ -168,6 +168,7 @@ class BookService(
             provider = req.provider,
             status = req.status,
             indicadoPor = req.indicadoPor,
+            indicadoPorEmail = req.indicadoPorEmail,
             votos = 1,
             criadoEm = LocalDateTime.now()
         )
@@ -185,7 +186,7 @@ class BookService(
     }
 
     fun listarLivros(): List<Livro> {
-        return livroRepository.findAllByOrderByVotosDescIdDesc()
+        return livroRepository.findByStatusNotOrderByVotosDescIdDesc("LIDO")
     }
 
     @Transactional

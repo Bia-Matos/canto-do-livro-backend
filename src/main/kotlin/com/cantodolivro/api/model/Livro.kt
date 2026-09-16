@@ -41,6 +41,7 @@ data class Livro(
     var votos: Int = 0,
 
     var indicadoPor: String? = null,
+    var indicadoPorEmail: String? = null,
 
     var criadoEm: LocalDateTime = LocalDateTime.now()
 )

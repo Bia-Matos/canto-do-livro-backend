@@ -33,5 +33,6 @@ data class AdicionarLivroRequest(
     val numeroPaginas: Int? = null,
     val provider: String = "OPEN_LIBRARY",
     val indicadoPor: String? = null,
+    val indicadoPorEmail: String? = null,
     val status: String = "SUGESTAO"
 )
