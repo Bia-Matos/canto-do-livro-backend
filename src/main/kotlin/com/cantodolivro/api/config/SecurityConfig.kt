@@ -29,7 +29,7 @@ class SecurityConfig(
             .csrf { it.disable() }
             .authorizeHttpRequests { authz ->
                 authz
-                    .requestMatchers("/api/public/**").permitAll()
+                    .requestMatchers("/api/public/**", "/healthz").permitAll()
                     .anyRequest().authenticated()
             }
             .oauth2ResourceServer { oauth2 ->
