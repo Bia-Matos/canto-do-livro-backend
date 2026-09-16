@@ -17,7 +17,9 @@ import javax.crypto.spec.SecretKeySpec
 @EnableWebSecurity
 class SecurityConfig(
     @Value("\${supabase.jwt.secret:sua-jwt-secret-super-secreta-aqui-com-pelo-menos-32-caracteres}")
-    private val jwtSecret: String
+    private val jwtSecret: String,
+    @Value("\${app.cors.allowed-origins:http://localhost:3000}")
+    private val corsAllowedOrigins: String
 ) {
 
     @Bean
@@ -51,7 +53,7 @@ class SecurityConfig(
     @Bean
     fun corsConfigurationSource(): CorsConfigurationSource {
         val configuration = CorsConfiguration()
-        configuration.allowedOriginPatterns = listOf("http://localhost:*")
+        configuration.allowedOriginPatterns = corsAllowedOrigins.split(",").map { it.trim() }
         configuration.allowedMethods = listOf("GET", "POST", "PUT", "DELETE", "OPTIONS")
         configuration.allowedHeaders = listOf("*")
         configuration.allowCredentials = true
